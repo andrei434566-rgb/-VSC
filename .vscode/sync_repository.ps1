@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$Repository,
 
@@ -23,73 +23,73 @@ function Test-RemoteAddress {
 try {
     if (Test-RemoteAddress $Repository) {
         if ([string]::IsNullOrWhiteSpace($DestinationPath)) {
-            throw 'Для клонирования укажите -DestinationPath.'
+            throw 'Specify -DestinationPath to clone a repository.'
         }
 
         $destination = [System.IO.Path]::GetFullPath($DestinationPath)
         if (Test-Path -LiteralPath $destination) {
             if (-not (Test-Path -LiteralPath $destination -PathType Container)) {
-                throw "Путь назначения не является папкой: $destination"
+                throw "Destination is not a directory: $destination"
             }
             $existing = @(Get-ChildItem -LiteralPath $destination -Force)
             if ($existing.Count -gt 0) {
-                throw "Папка назначения уже существует и не пуста: $destination"
+                throw "Destination directory is not empty: $destination"
             }
         }
         else {
             $parent = Split-Path -Parent $destination
             if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-                throw "Родительская папка не существует: $parent"
+                throw "Parent directory does not exist: $parent"
             }
         }
 
-        Write-Host "Клонирование $Repository в $destination"
+        Write-Host "Cloning $Repository into $destination"
         Invoke-Git -Arguments @('clone', '--', $Repository, $destination)
-        Write-Host "Клон создан: $destination"
+        Write-Host "Clone created: $destination"
         exit 0
     }
 
     if (-not (Test-Path -LiteralPath $Repository -PathType Container)) {
-        throw "Локальная папка не найдена: $Repository"
+        throw "Local directory not found: $Repository"
     }
 
     $repoRoot = & git -C $Repository rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $repoRoot) {
-        throw 'Указанная папка не находится внутри Git-репозитория.'
+        throw 'Specified directory is not inside a Git repository.'
     }
     $repoRoot = [System.IO.Path]::GetFullPath($repoRoot.Trim())
     $requestedPath = [System.IO.Path]::GetFullPath($Repository)
     if ($repoRoot.TrimEnd('\') -ne $requestedPath.TrimEnd('\')) {
-        throw "Укажите корень репозитория, а не вложенную папку. Корень: $repoRoot"
+        throw "Specify the repository root, not a subdirectory. Root: $repoRoot"
     }
 
     $origin = & git -C $repoRoot remote get-url origin 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($origin)) {
-        throw 'У репозитория не настроен remote origin.'
+        throw 'Git remote origin is not configured.'
     }
 
     $branch = & git -C $repoRoot branch --show-current 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $branch) {
-        throw 'Не удалось определить текущую ветку. Возможно, репозиторий находится в detached HEAD.'
+        throw 'Cannot determine current branch (possibly detached HEAD).'
     }
     $branch = $branch.Trim()
     if ([string]::IsNullOrWhiteSpace($branch)) {
-        throw 'Не удалось определить текущую ветку. Возможно, репозиторий находится в detached HEAD.'
+        throw 'Cannot determine current branch (possibly detached HEAD).'
     }
 
     $changes = @(& git -C $repoRoot status --porcelain --untracked-files=normal)
     if ($LASTEXITCODE -ne 0) {
-        throw 'Не удалось проверить состояние рабочей копии.'
+        throw 'Cannot check working tree status.'
     }
     if ($changes.Count -gt 0) {
-        Write-Host 'Обновление остановлено: в рабочей копии есть локальные изменения.'
+        Write-Host 'Update stopped: working tree has local changes.'
         $changes | ForEach-Object { Write-Host "  $_" }
-        throw 'Сохраните изменения самостоятельно и повторите запрос.'
+        throw 'Commit or stash local changes and try again.'
     }
 
-    Write-Host "Обновление $repoRoot, ветка $branch, remote origin: $($origin.Trim())"
+    Write-Host "Updating $repoRoot, branch $branch, remote origin: $($origin.Trim())"
     Invoke-Git -Arguments @('-C', $repoRoot, 'pull', '--ff-only', 'origin', $branch)
-    Write-Host "Репозиторий обновлён: $repoRoot ($branch)"
+    Write-Host "Repository updated: $repoRoot ($branch)"
 }
 catch {
     Write-Error -ErrorRecord $_
