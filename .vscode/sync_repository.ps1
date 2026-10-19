@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$Repository,
 
@@ -11,7 +11,7 @@ function Invoke-Git {
     param([string[]]$Arguments)
     & git @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Git завершился с кодом $LASTEXITCODE."
+        throw "Git command failed with exit code $LASTEXITCODE."
     }
 }
 
@@ -92,6 +92,6 @@ try {
     Write-Host "Репозиторий обновлён: $repoRoot ($branch)"
 }
 catch {
-    Write-Error $_
+    Write-Error -ErrorRecord $_
     exit 1
 }
