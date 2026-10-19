@@ -7,9 +7,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Resolve-GitExecutable {
+    $command = Get-Command git.exe -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+
+    $candidates = @(
+        "$env:ProgramFiles\Git\cmd\git.exe",
+        "${env:ProgramFiles(x86)}\Git\cmd\git.exe",
+        "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe",
+        "$env:USERPROFILE\scoop\apps\git\current\cmd\git.exe"
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
+    throw 'Git executable not found. Install Git for Windows from https://git-scm.com/download/win and restart VS Code.'
+}
+
+$GitExecutable = Resolve-GitExecutable
+
 function Invoke-Git {
     param([string[]]$Arguments)
-    & git @Arguments
+    & $GitExecutable @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Git command failed with exit code $LASTEXITCODE."
     }
@@ -53,7 +73,7 @@ try {
         throw "Local directory not found: $Repository"
     }
 
-    $repoRoot = & git -C $Repository rev-parse --show-toplevel 2>$null
+    $repoRoot = & $GitExecutable -C $Repository rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $repoRoot) {
         throw 'Specified directory is not inside a Git repository.'
     }
@@ -63,12 +83,12 @@ try {
         throw "Specify the repository root, not a subdirectory. Root: $repoRoot"
     }
 
-    $origin = & git -C $repoRoot remote get-url origin 2>$null
+    $origin = & $GitExecutable -C $repoRoot remote get-url origin 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($origin)) {
         throw 'Git remote origin is not configured.'
     }
 
-    $branch = & git -C $repoRoot branch --show-current 2>$null
+    $branch = & $GitExecutable -C $repoRoot branch --show-current 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $branch) {
         throw 'Cannot determine current branch (possibly detached HEAD).'
     }
@@ -77,7 +97,7 @@ try {
         throw 'Cannot determine current branch (possibly detached HEAD).'
     }
 
-    $changes = @(& git -C $repoRoot status --porcelain --untracked-files=normal)
+    $changes = @(& $GitExecutable -C $repoRoot status --porcelain --untracked-files=normal)
     if ($LASTEXITCODE -ne 0) {
         throw 'Cannot check working tree status.'
     }
